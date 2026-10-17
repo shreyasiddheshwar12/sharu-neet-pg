@@ -2,10 +2,13 @@
   "use strict";
   const KEY = "neetpg2027-v1";
   const SCHED = window.NEET_SCHEDULE;
+  const main = document.getElementById("app");
+  if (!SCHED || !Array.isArray(SCHED.days) || !SCHED.days.length) {
+    main.textContent = "The plan file (data/schedule.js) is missing. Keep index.html, app.js, styles.css and the data folder together, then reopen index.html.";
+    return;
+  }
   const DAYS = SCHED.days;
   const BY_DATE = Object.fromEntries(DAYS.map((d) => [d.date, d]));
-  const EXAM = new Date(SCHED.exam_date + "T00:00:00");
-  const main = document.getElementById("app");
 
   // Standard NEET PG subject order: Anatomy first, Anaesthesia last.
   const SUBJECT_ORDER = [
@@ -40,12 +43,16 @@
   function emptyState() {
     return { done: {}, qbank: {}, reflect: {}, mocks: [], tasks: [], tracker: {}, lastUpdate: null };
   }
-  function loadState() {
-    let s;
-    try { s = Object.assign(emptyState(), JSON.parse(localStorage.getItem(KEY) || "{}")); }
-    catch (e) { s = emptyState(); }
+  function isObj(v) { return !!v && typeof v === "object" && !Array.isArray(v); }
+  // Fill in anything missing or malformed so the views never trip over a partial or older save.
+  function normalize(raw) {
+    const s = Object.assign(emptyState(), isObj(raw) ? raw : {});
+    ["done", "qbank", "reflect", "tracker"].forEach((k) => { if (!isObj(s[k])) s[k] = {}; });
+    if (!Array.isArray(s.mocks)) s.mocks = [];
+    s.mocks = s.mocks.filter((m) => isObj(m) && Number(m.total) > 0);
+    s.tasks = Array.isArray(s.tasks) ? s.tasks.filter((t) => isObj(t) && t.id && t.name) : [];
+    s.tasks.forEach((t) => { if (typeof t.due !== "string") t.due = ""; });
     // Keep anything saved by the earlier version: rebuild its task list from the tracker keys, no dates added.
-    if (!Array.isArray(s.tasks)) s.tasks = [];
     Object.keys(s.tracker || {}).forEach((k) => {
       const id = k.split("|")[1];
       if (id && !s.tasks.find((t) => t.id === id)) {
@@ -55,7 +62,18 @@
     });
     return s;
   }
-  function save() { localStorage.setItem(KEY, JSON.stringify(state)); }
+  function loadState() {
+    try { return normalize(JSON.parse(localStorage.getItem(KEY) || "{}")); }
+    catch (e) { return normalize({}); }
+  }
+  let saveWarned = false;
+  function save() {
+    try { localStorage.setItem(KEY, JSON.stringify(state)); }
+    catch (e) {
+      if (!saveWarned) alert("This browser is blocking storage, so progress can't be saved. Try another browser, or turn off private mode.");
+      saveWarned = true;
+    }
+  }
   function isoOf(d) {
     const p = (n) => String(n).padStart(2, "0");
     return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
@@ -69,7 +87,7 @@
   function shortDate(iso) {
     return new Date(iso + "T00:00:00").toLocaleDateString("en-IN", { day: "numeric", month: "short" });
   }
-  function daysLeft() { return daysBetween(todayISO(), SCHED.exam_date); }
+  function daysLeft() { return Math.max(0, daysBetween(todayISO(), SCHED.exam_date)); }
 
   // ---------- DOM helper (text only, nothing parsed as markup) ----------
   function h(tag, props, ...kids) {
@@ -87,7 +105,8 @@
     return el;
   }
   function toast(msg) {
-    const t = h("div", { class: "toast" }, msg);
+    document.querySelectorAll(".toast").forEach((x) => x.remove());
+    const t = h("div", { class: "toast", role: "status" }, msg);
     document.body.append(t);
     requestAnimationFrame(() => t.classList.add("show"));
     setTimeout(() => { t.classList.remove("show"); setTimeout(() => t.remove(), 300); }, 2200);
@@ -133,15 +152,16 @@
   function cellOf(subject, taskId) { return state.tracker[`${subject}|${taskId}`] || {}; }
   function setCell(subject, taskId, patch) {
     state.tracker[`${subject}|${taskId}`] = Object.assign({}, cellOf(subject, taskId), patch);
-    state.lastUpdate = todayISO();
-    save();
+    touch();
   }
-  function setTask(id, patch) { Object.assign(taskById(id), patch); save(); }
-  function addTask(t) { state.tasks.push(t); save(); }
+  // Any tracker edit counts as a check-in for the staleness check.
+  function touch() { state.lastUpdate = todayISO(); save(); }
+  function setTask(id, patch) { const t = taskById(id); if (t) Object.assign(t, patch); touch(); }
+  function addTask(t) { state.tasks.push(t); touch(); }
   function removeTask(id) {
     state.tasks = tasks().filter((t) => t.id !== id);
     Object.keys(state.tracker).forEach((k) => { if (k.endsWith(`|${id}`)) delete state.tracker[k]; });
-    save();
+    touch();
   }
   function isLate(task, cell) { return !cell.done && !!task.due && task.due < todayISO(); }
   function cellClass(subject, task) {
@@ -151,14 +171,14 @@
   }
   function trackerIssues() {
     const out = { overdue: [], noDate: [], lowConf: [], seq: [] };
-    const core = tasks().find((t) => t.kind === "core");
+    const cores = tasks().filter((t) => t.kind === "core");
     SUBJECTS.forEach((s) => tasks().forEach((t) => {
       const c = cellOf(s.name, t.id);
       const label = `${s.name} · ${t.name}`;
       if (isLate(t, c)) out.overdue.push(`${label} (due ${shortDate(t.due)})`);
       if (c.done && !c.date) out.noDate.push(label);
       if (c.done && c.conf && c.conf <= 2) out.lowConf.push(label);
-      if (t.kind === "rev" && c.done && core && !cellOf(s.name, core.id).done) out.seq.push(label);
+      if (t.kind === "rev" && c.done && cores.length && !cores.some((k) => cellOf(s.name, k.id).done)) out.seq.push(label);
     }));
     return out;
   }
@@ -238,16 +258,23 @@
     }
     wrap.append(statsBar());
     const day = BY_DATE[viewDate];
+    const first = DAYS[0].date, last = DAYS[DAYS.length - 1].date;
+    const go = (iso) => { viewDate = iso; render(); };
+    wrap.append(h("div", { class: "row daynav" },
+      h("div", { class: "row" },
+        h("button", { class: "chip", title: "Previous day", "aria-label": "Previous day", disabled: viewDate <= first, onclick: () => go(viewDate > last ? last : shift(viewDate, -1)) }, "◀"),
+        h("strong", {}, fmt(viewDate)),
+        h("button", { class: "chip", title: "Next day", "aria-label": "Next day", disabled: viewDate >= last, onclick: () => go(viewDate < first ? first : shift(viewDate, 1)) }, "▶"),
+        viewDate !== todayISO() ? h("button", { class: "chip", onclick: () => go(todayISO()) }, "Back to today") : null),
+      day ? h("span", { class: "muted" }, day.phase) : null));
     if (!day) {
-      wrap.append(h("p", { class: "empty" }, viewDate < DAYS[0].date ? `Plan starts ${fmt(DAYS[0].date)}.` : "No plan for this date."));
+      const before = viewDate < first;
+      wrap.append(h("div", { class: "empty" },
+        h("b", {}, before ? `Your plan starts ${fmt(first)}` : "The plan has finished"),
+        before ? `${daysBetween(viewDate, first) === 1 ? "Tomorrow" : `${daysBetween(viewDate, first)} days to go`}. Have a look at day 1 now.` : "All the best for the exam. 🦋",
+        h("div", {}, h("button", { class: "primary", style: "margin-top:12px", onclick: () => go(before ? first : last) }, before ? "Preview day 1 →" : "Open the last day"))));
     } else {
       const s = dayStats(day);
-      wrap.append(h("div", { class: "row", style: "justify-content:space-between" },
-        h("div", { class: "row" },
-          h("button", { class: "chip", onclick: () => { viewDate = shift(viewDate, -1); render(); } }, "◀"),
-          h("strong", {}, `${fmt(day.date)}`),
-          h("button", { class: "chip", onclick: () => { viewDate = shift(viewDate, 1); render(); } }, "▶")),
-        h("span", { class: "muted" }, day.phase)));
       wrap.append(h("p", { class: "muted", style: "margin:4px 0 0" }, day.focus + (day.mock ? "  ·  🎯 MOCK DAY" : "")));
       wrap.append(h("div", { class: "progress" }, h("i", { style: `width:${Math.round((100 * s.done) / s.total)}%` })));
       const list = h("div", { class: "blocks" });
@@ -272,9 +299,13 @@
   function renderCalendar() {
     const rows = DAYS.map((day) => {
       const s = dayStats(day);
-      const cls = s.done === 0 ? "" : dayOk(day.date) ? "good" : "partial";
-      return h("tr", { class: cls, onclick: () => { viewDate = day.date; setView("today"); } },
-        h("td", {}, fmt(day.date)),
+      const cls = (s.done === 0 ? "" : dayOk(day.date) ? "good" : "partial") + (day.date === todayISO() ? " today" : "");
+      const open = () => { viewDate = day.date; setView("today"); };
+      return h("tr", {
+        class: cls, tabindex: "0", onclick: open,
+        onkeydown: (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); open(); } },
+      },
+        h("td", {}, fmt(day.date), day.date === todayISO() ? h("span", { class: "pill" }, "today") : null),
         h("td", {}, day.phase),
         h("td", {}, day.focus),
         h("td", {}, `${s.done}/${s.total}`));
@@ -297,7 +328,8 @@
     const addOwn = () => {
       const name = nameIn.value.trim();
       if (!name) return toast("Give the task a name first ✏️");
-      const kind = /revision/i.test(name) ? "rev" : /core/i.test(name) ? "core" : "custom";
+      if (tasks().some((t) => t.name.toLowerCase() === name.toLowerCase())) return toast("You already have that task 🙂");
+      const kind = /\brevision\b/i.test(name) ? "rev" : /\bcore\b/i.test(name) ? "core" : "custom";
       addTask({ id: `t${Date.now()}`, name, due: dueIn.value, kind });
       toast("Task added ✨");
       render();
@@ -387,7 +419,8 @@
             checked: !!c.done,
             onchange: (e) => {
               const on = e.target.checked;
-              setCell(subject, task.id, { done: on, date: on ? c.date || todayISO() : c.date });
+              // Ticking stamps today's date (unless she already typed one); unticking clears it.
+              setCell(subject, task.id, { done: on, date: on ? c.date || todayISO() : "" });
               if (on) toast(cheer());
               render();
             },
@@ -421,20 +454,25 @@
       },
     },
       h("input", { type: "date", name: "date", value: todayISO(), required: true }),
-      h("input", { type: "number", name: "score", placeholder: "Score", min: "0", required: true }),
-      h("input", { type: "number", name: "total", placeholder: "Total marks", value: "800", min: "1" }),
+      h("input", { type: "number", name: "score", placeholder: "Score", title: "Your score", min: "0", required: true }),
+      h("input", { type: "number", name: "total", placeholder: "Total marks", title: "Total marks", value: "800", min: "1" }),
       h("input", { type: "text", name: "note", placeholder: "Weak areas" }),
       h("button", { class: "primary", type: "submit" }, "Add mock"));
-    const last5 = state.mocks.slice(-5);
+    const sorted = state.mocks.slice().sort((a, b) => String(a.date).localeCompare(String(b.date)));
+    const last5 = sorted.slice(-5);
     const avg = last5.length
       ? Math.round(last5.reduce((a, m) => a + (100 * m.score) / m.total, 0) / last5.length)
       : null;
-    const rows = state.mocks.map((m, idx) => h("tr", {},
+    const rows = sorted.slice().reverse().map((m) => h("tr", {},
       h("td", {}, m.date),
       h("td", {}, `${m.score}/${m.total}`),
       h("td", {}, `${Math.round((100 * m.score) / m.total)}%`),
       h("td", {}, m.note),
-      h("td", {}, h("button", { class: "icon danger", onclick: () => { state.mocks.splice(idx, 1); save(); render(); } }, "✕"))));
+      h("td", {}, h("button", {
+        class: "icon danger", title: "Delete this mock", onclick: () => {
+          if (confirm(`Delete the mock from ${m.date}?`)) { state.mocks = state.mocks.filter((x) => x !== m); save(); render(); }
+        },
+      }, "✕"))));
     main.replaceChildren(
       h("div", { class: "card" }, h("h3", {}, "🎯 Mocks"),
         h("p", { class: "muted" }, avg === null
@@ -443,7 +481,7 @@
         form),
       h("div", { class: "scroll card", style: "padding:0" }, h("table", {},
         h("thead", {}, h("tr", {}, ...["Date", "Score", "%", "Weak areas", ""].map((t) => h("th", {}, t)))),
-        h("tbody", {}, rows))));
+        h("tbody", {}, rows.length ? rows : h("tr", {}, h("td", { colspan: "5", class: "muted" }, "Your mocks will appear here."))))));
   }
 
   function renderBackup() {
@@ -451,8 +489,11 @@
       class: "primary",
       onclick: () => {
         const blob = new Blob([JSON.stringify(state, null, 2)], { type: "application/json" });
-        const a = h("a", { href: URL.createObjectURL(blob), download: `neetpg-progress-${todayISO()}.json` });
+        const url = URL.createObjectURL(blob);
+        const a = h("a", { href: url, download: `neetpg-progress-${todayISO()}.json` });
         document.body.append(a); a.click(); a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+        toast("Backup downloaded 💾");
       },
     }, "Export progress (JSON)");
     const fileIn = h("input", {
@@ -461,8 +502,15 @@
         const file = e.target.files[0];
         if (!file) return;
         file.text()
-          .then((t) => { state = Object.assign(emptyState(), JSON.parse(t)); save(); render(); toast("Progress imported ✨"); })
-          .catch(() => alert("That file is not a valid progress backup."));
+          .then((t) => {
+            const raw = JSON.parse(t);
+            const looksRight = isObj(raw) && ["done", "tasks", "tracker", "mocks"].some((k) => k in raw);
+            if (!looksRight) throw new Error("not a backup");
+            if (!confirm("Replace the progress in this browser with this backup?")) return;
+            state = normalize(raw); save(); render(); toast("Progress imported ✨");
+          })
+          .catch(() => alert("That file is not a valid progress backup. Nothing was changed."))
+          .finally(() => { e.target.value = ""; });
       },
     });
     const reset = h("button", {
@@ -481,12 +529,35 @@
   }
 
   // ---------- navigation ----------
+  let rendering = false, queued = false, shown = "";
   function render() {
-    document.getElementById("countdown-num").textContent = daysLeft();
-    document.getElementById("quote").textContent = QUOTES[new Date().getDate() % QUOTES.length];
-    const views = { today: renderToday, calendar: renderCalendar, tracker: renderTracker, mocks: renderMocks, backup: renderBackup };
-    views[view]();
-    document.querySelectorAll("nav button").forEach((b) => b.classList.toggle("active", b.dataset.view === view));
+    // Re-rendering removes the focused input, which can fire another change event mid-render; queue it instead.
+    if (rendering) { queued = true; return; }
+    rendering = true;
+    try {
+      const key = view === "today" ? `today|${viewDate}` : view;
+      const same = key === shown;
+      // Keep table scroll positions when the same screen redraws (e.g. after ticking a tracker cell).
+      const scrolls = same ? [...main.querySelectorAll(".scroll")].map((el) => [el.scrollLeft, el.scrollTop]) : [];
+      main.classList.toggle("enter", !same);
+      document.getElementById("countdown-num").textContent = daysLeft();
+      document.getElementById("quote").textContent = QUOTES[new Date().getDate() % QUOTES.length];
+      const views = { today: renderToday, calendar: renderCalendar, tracker: renderTracker, mocks: renderMocks, backup: renderBackup };
+      views[view]();
+      main.querySelectorAll(".scroll").forEach((el, i) => { if (scrolls[i]) [el.scrollLeft, el.scrollTop] = scrolls[i]; });
+      if (view === "calendar" && !same) {
+        const row = main.querySelector("tr.today");
+        if (row) row.scrollIntoView({ block: "center" });
+      }
+      document.querySelectorAll("nav button").forEach((b) => {
+        b.classList.toggle("active", b.dataset.view === view);
+        b.setAttribute("aria-pressed", String(b.dataset.view === view));
+      });
+      shown = key;
+    } finally {
+      rendering = false;
+    }
+    if (queued) { queued = false; render(); }
   }
   function setView(v) {
     view = v;

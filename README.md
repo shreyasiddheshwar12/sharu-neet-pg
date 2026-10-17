@@ -11,11 +11,19 @@ Covers all 19 subjects, from 18 Oct 2026 to the exam, with a day-by-day plan and
 
 ## Using the app
 
-1. **Today**: tick blocks as you finish them. Enter questions solved and a short reflection each night.
-2. **Calendar**: green days are 80% or more complete, amber days have some progress. Tap a day to open it.
-3. **Tracker**: add only the tasks you want (quick-add chips or your own). Each task is a row, each subject a column. Set your own due date per task (optional). Tick Done, and the date fills in; set confidence. The check panel flags overdue tasks, weak subjects and skipped sequence. The Today screen lists tasks with a due date in the next 7 days.
-4. **Mocks**: log every full mock with score and weak areas. The average of the last five shows your trend.
-5. **Backup**: progress lives in this browser only. Export every Sunday.
+1. **Today**: tick blocks as you finish them. Enter questions solved and a short reflection each night. Use ◀ ▶ to move between days; before the plan starts, "Preview day 1" opens the first day.
+2. **Calendar**: green days are 80% or more complete, amber days have some progress, and today is marked. Tap a day (or press Enter on it) to open it.
+3. **Tracker**: starts empty. Add only the tasks you want, with the quick-add chips (Core BTR videos, Marrow RR videos, RR videos, PYQs, Revision 1 to 8) or your own typed name. Each task is a row and each of the 19 subjects is a column (Anatomy first, Anaesthesia last). Each task has an optional due date that you set yourself; blank means no due date. In each cell, tick Done and today's date fills in (you can change it; unticking clears it), then set confidence 1 to 5. The Today screen lists open tasks that are overdue or due in the next 7 days.
+4. **Mocks**: log every full mock with score, total marks and weak areas. The average of your five most recent mocks (by date) shows your trend.
+5. **Backup**: progress lives in this browser only. Export every Sunday. Importing asks before replacing anything, and a file that is not a backup changes nothing. Erase wipes all progress in this browser.
+
+## Tracker checks
+
+- **Overdue**: a task's due date has passed and that subject is not ticked Done.
+- **Done without a date**: ticked Done but the finished-on date is blank.
+- **Done but weak**: ticked Done with confidence 1 or 2.
+- **Revision before core videos**: a revision task is done for a subject where no core-video task is done yet. Typed tasks with the word "revision" count as revision, and typed tasks with the word "core" count as core videos.
+- **Weekly check-in**: warns after 3 or more days without any tracker update (ticking, dates, confidence, or adding, removing or re-dating a task).
 
 ## Rules the app enforces
 
