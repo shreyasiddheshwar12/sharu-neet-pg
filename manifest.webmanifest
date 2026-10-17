@@ -1,0 +1,15 @@
+{
+  "name": "NEET PG 2027 Planner",
+  "short_name": "NEET PG",
+  "description": "Day plan, tracker and mocks for NEET PG 2027. Works offline; progress stays on this device.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#0d0e1b",
+  "theme_color": "#0d0e1b",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icons/icon.svg", "sizes": "any", "type": "image/svg+xml" }
+  ]
+}

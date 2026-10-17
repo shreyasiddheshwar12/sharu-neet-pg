@@ -8,6 +8,19 @@ Covers all 19 subjects, from 18 Oct 2026 to the exam, with a day-by-day plan and
 - `SCHEDULE.md`: the printable suggested day-by-day plan (phases, subject allocation, one row per day). Your own edits made in the app are not in this file.
 - `data/schedule.json` and `data/schedule.js`: the plan as data. The app reads `schedule.js`.
 - `index.html`, `app.js`, `styles.css`: the tracker. Open `index.html` in any browser. No server or install needed.
+- `manifest.webmanifest`, `sw.js`, `icons/`: home-screen icon and offline support when the app is opened from a web link. Ignored when you open the file directly.
+
+## Use it on a tablet or phone
+
+The repo can be served as a website with GitHub Pages (free for public repos):
+
+1. On GitHub, open the repo's **Settings → Pages**.
+2. Under **Build and deployment**, choose **Deploy from a branch**, branch **main**, folder **/ (root)**, then **Save**.
+3. After a minute or two the planner is at `https://shreyasiddheshwar12.github.io/sharu-neet-pg/`. Send that link by email or chat.
+
+On the tablet, open the link and use **Add to Home Screen** (Safari: Share button; Chrome: ⋮ menu). It then opens like an app with its own icon and works offline after the first visit. Every new push to `main` updates it.
+
+Progress is saved on each device separately, never online. To move progress between devices, use Backup → Export on one and Import on the other.
 
 ## Using the app
 
