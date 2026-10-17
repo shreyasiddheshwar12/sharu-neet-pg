@@ -126,6 +126,26 @@ table.cal tr:focus-visible { outline-offset: -2px; }
 .pill { display: inline-block; margin-left: 8px; padding: 1px 8px; border-radius: 999px; font-size: .7rem; font-weight: 700;
   text-transform: uppercase; letter-spacing: .06em; background: var(--grad); color: #0d0e1b; vertical-align: middle; }
 .daynav { justify-content: space-between; }
+.pill.soft { background: rgba(167,139,250,.18); color: var(--accent); }
+.block .subj { display: inline-block; margin-left: 8px; font-size: .75rem; font-weight: 600; color: var(--c, var(--accent));
+  padding: 1px 8px; border-radius: 999px; border: 1px solid color-mix(in srgb, var(--c, var(--accent)) 45%, transparent); vertical-align: 1px; }
+.block.editing { cursor: default; padding-left: 18px; }
+.block.editing:hover { transform: none; }
+.bedit { display: grid; gap: 8px; flex: 1; min-width: 0; }
+.block.editing input, .block.editing select { height: auto; accent-color: auto; cursor: auto; }
+.bedit > input { width: 100%; }
+.erow { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.erow input[type=time] { width: 120px; color-scheme: dark; }
+.erow select { flex: 1; min-width: 120px; }
+.erow .icon { margin-left: auto; }
+.editor { border-color: rgba(167,139,250,.45); }
+.modes { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; margin-top: 8px; }
+.mode { display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--line);
+  background: var(--card2); cursor: pointer; transition: border-color .2s, background .2s; }
+.mode:hover { border-color: var(--accent); }
+.mode.on { border-color: var(--accent); background: rgba(167,139,250,.12); }
+.mode input { accent-color: var(--accent); margin-top: 4px; }
+.mode b { display: block; }
 .daynav .row { margin: 0; }
 
 /* tracker */

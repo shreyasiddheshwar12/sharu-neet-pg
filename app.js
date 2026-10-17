@@ -38,10 +38,12 @@
   let state = loadState();
   let view = "today";
   let viewDate = todayISO();
+  let editing = false;
 
   // ---------- storage & dates ----------
   function emptyState() {
-    return { done: {}, qbank: {}, reflect: {}, mocks: [], tasks: [], tracker: {}, lastUpdate: null };
+    // custom: her own version of a day's blocks, keyed by date. blankPlan: days she hasn't edited start empty.
+    return { done: {}, qbank: {}, reflect: {}, mocks: [], tasks: [], tracker: {}, custom: {}, blankPlan: false, lastUpdate: null };
   }
   function isObj(v) { return !!v && typeof v === "object" && !Array.isArray(v); }
   // Fill in anything missing or malformed so the views never trip over a partial or older save.
@@ -52,6 +54,13 @@
     s.mocks = s.mocks.filter((m) => isObj(m) && Number(m.total) > 0);
     s.tasks = Array.isArray(s.tasks) ? s.tasks.filter((t) => isObj(t) && t.id && t.name) : [];
     s.tasks.forEach((t) => { if (typeof t.due !== "string") t.due = ""; });
+    if (!isObj(s.custom)) s.custom = {};
+    Object.keys(s.custom).forEach((d) => {
+      const c = s.custom[d];
+      if (!isObj(c) || !Array.isArray(c.blocks) || !BY_DATE[d]) { delete s.custom[d]; return; }
+      c.blocks = c.blocks.filter((b) => isObj(b) && b.id);
+    });
+    s.blankPlan = s.blankPlan === true;
     // Keep anything saved by the earlier version: rebuild its task list from the tracker keys, no dates added.
     Object.keys(s.tracker || {}).forEach((k) => {
       const id = k.split("|")[1];
@@ -115,12 +124,68 @@
   const cheer = () => CHEERS[Math.floor(Math.random() * CHEERS.length)];
 
   // ---------- daily plan logic ----------
+  const TYPES = [["study", "Study"], ["qbank", "Questions"], ["revise", "Revision"], ["notes", "Notes"],
+    ["mock", "Mock"], ["buffer", "Catch-up"], ["reflect", "Reflect"]];
+  const typeLabel = (t) => (TYPES.find((x) => x[0] === t) || [t, t || "Block"])[1];
+  const byStart = (a, b) => (a.start || "99").localeCompare(b.start || "99");
+
+  // The plan for a date as she sees it: her edited blocks if she changed the day, otherwise the suggested
+  // blocks (or nothing, if she chose blank days). Returns null outside the plan's date range.
+  function planDay(iso) {
+    const base = BY_DATE[iso];
+    if (!base) return null;
+    const own = state.custom[iso];
+    const mine = !!own || state.blankPlan;
+    const blocks = (own ? own.blocks : state.blankPlan ? [] : base.blocks).slice().sort(byStart);
+    const subjects = [...new Set(blocks.map((b) => b.subject).filter(Boolean))];
+    return {
+      date: iso,
+      phase: state.blankPlan ? "" : base.phase,
+      blocks,
+      edited: !!own,
+      focus: mine ? subjects.join(" · ") || (blocks.length ? "Your own plan" : "Nothing planned yet") : base.focus,
+      mock: mine ? blocks.some((b) => b.type === "mock") : base.mock,
+      qbank_target: mine ? null : base.qbank_target,
+    };
+  }
+  function uid() { return `c${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`; }
+  // First edit of a day copies what she currently sees, keeping block IDs so ticks carry over.
+  function ownDay(iso) {
+    if (!state.custom[iso]) state.custom[iso] = { blocks: planDay(iso).blocks.map((b) => Object.assign({}, b)) };
+    return state.custom[iso];
+  }
+  function editBlock(iso, id, patch) {
+    const b = ownDay(iso).blocks.find((x) => x.id === id);
+    if (b) Object.assign(b, patch);
+    save();
+  }
+  function addBlock(iso) {
+    const blocks = ownDay(iso).blocks;
+    const lastEnd = blocks.map((b) => b.end).filter(Boolean).sort().pop();
+    blocks.push({ id: uid(), start: lastEnd || "09:00", end: "", type: "study", subject: "", title: "", detail: "" });
+    save();
+  }
+  function removeBlock(iso, id) {
+    const own = ownDay(iso);
+    own.blocks = own.blocks.filter((b) => b.id !== id);
+    delete state.done[id];
+    save();
+  }
+  function copyDay(from, to) {
+    state.custom[to] = { blocks: planDay(from).blocks.map((b) => Object.assign({}, b, { id: uid() })) };
+    save();
+  }
+  function subjectChoices() {
+    const own = Object.values(state.custom).flatMap((c) => c.blocks.map((b) => b.subject)).filter(Boolean);
+    return [...new Set([...SUBJECT_ORDER, ...own])];
+  }
+
   function blockDone(b) { return !!state.done[b.id]; }
   function dayStats(day) { return { done: day.blocks.filter(blockDone).length, total: day.blocks.length }; }
-  // A day counts as "kept" when at least 80% of its blocks are ticked.
+  // A day counts as "kept" when at least 80% of its blocks are ticked (an empty day never counts).
   function dayOk(iso) {
-    const day = BY_DATE[iso];
-    if (!day) return false;
+    const day = planDay(iso);
+    if (!day || !day.blocks.length) return false;
     const s = dayStats(day);
     return s.done >= Math.ceil(s.total * 0.8);
   }
@@ -132,15 +197,15 @@
     return n;
   }
   function overall() {
-    const blocks = DAYS.flatMap((d) => d.blocks);
+    const blocks = DAYS.flatMap((d) => planDay(d.date).blocks);
     const done = blocks.filter(blockDone).length;
-    return { done, total: blocks.length, pct: Math.round((100 * done) / blocks.length) };
+    return { done, total: blocks.length, pct: blocks.length ? Math.round((100 * done) / blocks.length) : 0 };
   }
   function unfinished() {
     const today = todayISO();
     const out = [];
     for (let k = 1; k <= 3; k++) {
-      const day = BY_DATE[shift(today, -k)];
+      const day = planDay(shift(today, -k));
       if (day) day.blocks.filter((b) => !blockDone(b) && b.type !== "reflect").forEach((b) => out.push(b));
     }
     return out;
@@ -225,10 +290,34 @@
       }),
       h("div", { class: "bmain" },
         h("div", { class: "meta" },
-          h("span", { class: "time" }, `${b.start}–${b.end}`),
-          h("span", { class: "tag" }, b.type)),
-        h("div", { class: "title" }, b.title),
-        h("small", { class: "detail" }, b.detail)));
+          h("span", { class: "time" }, [b.start, b.end].filter(Boolean).join("–")),
+          h("span", { class: "tag" }, typeLabel(b.type))),
+        h("div", { class: "title" }, b.title || b.subject || "Untitled block",
+          b.subject && b.title && !b.title.includes(b.subject) ? h("span", { class: "subj" }, b.subject) : null),
+        b.detail ? h("small", { class: "detail" }, b.detail) : null));
+  }
+
+  // Edit mode: every field of a block is editable. Text and time edits save on change without redrawing,
+  // so typing is never interrupted; the list re-sorts by start time on the next redraw.
+  function blockEditor(iso, b) {
+    const set = (k) => (e) => editBlock(iso, b.id, { [k]: e.target.value.trim() });
+    return h("div", { class: `block editing t-${b.type}` },
+      h("div", { class: "bedit" },
+        h("div", { class: "erow" },
+          h("input", { type: "time", value: b.start || "", title: "Start", "aria-label": "Start time", onchange: set("start") }),
+          h("span", { class: "muted" }, "to"),
+          h("input", { type: "time", value: b.end || "", title: "End", "aria-label": "End time", onchange: set("end") }),
+          h("select", {
+            title: "Kind of block", "aria-label": "Kind of block",
+            onchange: (e) => { editBlock(iso, b.id, { type: e.target.value }); render(); },
+          }, ...TYPES.map(([v, l]) => h("option", { value: v, selected: b.type === v }, l))),
+          h("button", {
+            class: "icon danger", title: "Remove this block", "aria-label": "Remove this block",
+            onclick: () => { removeBlock(iso, b.id); render(); },
+          }, "✕")),
+        h("input", { type: "text", list: "subject-list", value: b.subject || "", placeholder: "Subject (pick or type your own)", "aria-label": "Subject", maxlength: "60", onchange: set("subject") }),
+        h("input", { type: "text", value: b.title || "", placeholder: "What will you do? e.g. Cardiology videos", "aria-label": "Title", maxlength: "120", onchange: set("title") }),
+        h("input", { type: "text", value: b.detail || "", placeholder: "Notes (optional)", "aria-label": "Notes", maxlength: "200", onchange: set("detail") })));
   }
 
   function renderToday() {
@@ -236,7 +325,7 @@
     const late = unfinished();
     if (viewDate === todayISO() && late.length) {
       wrap.append(h("div", { class: "banner" },
-        `⚠️ ${late.length} unfinished block(s) from the last 3 days. Move them into today's catch-up buffer or Saturday's buffer.`));
+        `⚠️ ${late.length} unfinished block(s) from the last 3 days. Fit them into a catch-up slot this week.`));
     }
     if (viewDate === todayISO()) {
       const soon = dueSoon();
@@ -257,7 +346,7 @@
       wrap.append(card);
     }
     wrap.append(statsBar());
-    const day = BY_DATE[viewDate];
+    const day = planDay(viewDate);
     const first = DAYS[0].date, last = DAYS[DAYS.length - 1].date;
     const go = (iso) => { viewDate = iso; render(); };
     wrap.append(h("div", { class: "row daynav" },
@@ -266,7 +355,9 @@
         h("strong", {}, fmt(viewDate)),
         h("button", { class: "chip", title: "Next day", "aria-label": "Next day", disabled: viewDate >= last, onclick: () => go(viewDate < first ? first : shift(viewDate, 1)) }, "▶"),
         viewDate !== todayISO() ? h("button", { class: "chip", onclick: () => go(todayISO()) }, "Back to today") : null),
-      day ? h("span", { class: "muted" }, day.phase) : null));
+      day ? h("div", { class: "row" },
+        day.phase ? h("span", { class: "muted" }, day.phase) : null,
+        h("button", { class: editing ? "primary" : "chip", onclick: () => { editing = !editing; render(); } }, editing ? "✓ Done editing" : "✏️ Edit day")) : null));
     if (!day) {
       const before = viewDate < first;
       wrap.append(h("div", { class: "empty" },
@@ -275,13 +366,22 @@
         h("div", {}, h("button", { class: "primary", style: "margin-top:12px", onclick: () => go(before ? first : last) }, before ? "Preview day 1 →" : "Open the last day"))));
     } else {
       const s = dayStats(day);
-      wrap.append(h("p", { class: "muted", style: "margin:4px 0 0" }, day.focus + (day.mock ? "  ·  🎯 MOCK DAY" : "")));
-      wrap.append(h("div", { class: "progress" }, h("i", { style: `width:${Math.round((100 * s.done) / s.total)}%` })));
-      const list = h("div", { class: "blocks" });
-      day.blocks.forEach((b) => list.append(blockRow(b)));
-      wrap.append(list);
+      wrap.append(h("p", { class: "muted", style: "margin:4px 0 0" }, day.focus + (day.mock ? "  ·  🎯 MOCK DAY" : ""),
+        day.edited ? h("span", { class: "pill soft" }, "your plan") : null));
+      wrap.append(h("div", { class: "progress" }, h("i", { style: `width:${s.total ? Math.round((100 * s.done) / s.total) : 0}%` })));
+      if (editing) wrap.append(renderDayEditor(day));
+      else {
+        const list = h("div", { class: "blocks" });
+        day.blocks.forEach((b) => list.append(blockRow(b)));
+        if (!day.blocks.length) {
+          list.append(h("div", { class: "empty" }, h("b", {}, "Nothing planned for this day"),
+            "Plan it your way: add your own subjects and blocks.",
+            h("div", {}, h("button", { class: "primary", style: "margin-top:12px", onclick: () => { editing = true; render(); } }, "✏️ Plan this day"))));
+        }
+        wrap.append(list);
+      }
       wrap.append(h("label", { class: "field" },
-        `Questions solved today (target ${day.qbank_target})`,
+        day.qbank_target ? `Questions solved today (target ${day.qbank_target})` : "Questions solved today",
         h("input", {
           type: "number", min: "0", value: state.qbank[day.date] || 0,
           onchange: (e) => { state.qbank[day.date] = Number(e.target.value) || 0; save(); render(); },
@@ -296,8 +396,46 @@
     main.replaceChildren(wrap);
   }
 
+  function renderDayEditor(day) {
+    const iso = day.date;
+    const box = h("div", { class: "card editor" },
+      h("h3", {}, "✏️ Plan this day your way"),
+      h("p", { class: "muted" }, "Change any block, add your own subjects, or remove what you don't need. Changes save as you go."),
+      h("datalist", { id: "subject-list" }, ...subjectChoices().map((n) => h("option", { value: n }))));
+    const list = h("div", { class: "blocks" });
+    day.blocks.forEach((b) => list.append(blockEditor(iso, b)));
+    if (!day.blocks.length) list.append(h("p", { class: "muted" }, "No blocks yet. Add your first one below."));
+    box.append(list);
+    const copyTo = h("input", { type: "date", min: DAYS[0].date, max: DAYS[DAYS.length - 1].date, value: shift(iso, 1) <= DAYS[DAYS.length - 1].date ? shift(iso, 1) : "", "aria-label": "Copy to date" });
+    box.append(
+      h("div", { class: "row" },
+        h("button", { class: "primary", onclick: () => { addBlock(iso); render(); } }, "+ Add block"),
+        day.blocks.length ? h("button", {
+          class: "danger", onclick: () => {
+            if (confirm("Remove every block from this day?")) { state.custom[iso] = { blocks: [] }; day.blocks.forEach((b) => delete state.done[b.id]); save(); render(); }
+          },
+        }, "Clear this day") : null,
+        day.edited && !state.blankPlan ? h("button", {
+          class: "ghost", onclick: () => {
+            if (confirm("Undo your changes and go back to the suggested plan for this day?")) { delete state.custom[iso]; save(); render(); }
+          },
+        }, "↺ Back to suggested plan") : null),
+      h("div", { class: "row" },
+        h("span", { class: "muted" }, "Copy this day to"), copyTo,
+        h("button", {
+          class: "chip", onclick: () => {
+            const to = copyTo.value;
+            if (!to || !BY_DATE[to] || to === iso) return toast("Pick another date inside the plan 📅");
+            if (state.custom[to] && !confirm(`${fmt(to)} already has your own plan. Replace it?`)) return;
+            copyDay(iso, to); toast(`Copied to ${shortDate(to)} ✨`);
+          },
+        }, "Copy")));
+    return box;
+  }
+
   function renderCalendar() {
-    const rows = DAYS.map((day) => {
+    const rows = DAYS.map((d) => {
+      const day = planDay(d.date);
       const s = dayStats(day);
       const cls = (s.done === 0 ? "" : dayOk(day.date) ? "good" : "partial") + (day.date === todayISO() ? " today" : "");
       const open = () => { viewDate = day.date; setView("today"); };
@@ -306,14 +444,26 @@
         onkeydown: (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); open(); } },
       },
         h("td", {}, fmt(day.date), day.date === todayISO() ? h("span", { class: "pill" }, "today") : null),
-        h("td", {}, day.phase),
-        h("td", {}, day.focus),
-        h("td", {}, `${s.done}/${s.total}`));
+        state.blankPlan ? null : h("td", {}, day.phase),
+        h("td", {}, day.focus, day.edited ? h("span", { class: "pill soft" }, "yours") : null),
+        h("td", {}, s.total ? `${s.done}/${s.total}` : "–"));
     });
+    const mode = (blank, label, hint) => h("label", { class: `mode${state.blankPlan === blank ? " on" : ""}` },
+      h("input", {
+        type: "radio", name: "planmode", checked: state.blankPlan === blank,
+        onchange: () => { state.blankPlan = blank; save(); render(); },
+      }),
+      h("span", {}, h("b", {}, label), h("small", { class: "muted" }, hint)));
     main.replaceChildren(
+      h("div", { class: "card" },
+        h("h3", {}, "🗓️ How do you want to plan?"),
+        h("div", { class: "modes" },
+          mode(false, "Start from the suggested timetable", "Every day comes filled in. Edit any day to make it yours."),
+          mode(true, "Blank days, I'll plan my own", "Days start empty. Open a day and add your own subjects and blocks.")),
+        h("p", { class: "muted", style: "margin:10px 0 0" }, "Days you've already edited keep your plan either way. Open a day and tap ✏️ Edit day to change it.")),
       h("p", { class: "muted" }, "Tap a day to open it. Green = at least 80% done. Amber = some progress."),
       h("div", { class: "scroll card", style: "padding:0" }, h("table", { class: "cal" },
-        h("thead", {}, h("tr", {}, h("th", {}, "Date"), h("th", {}, "Phase"), h("th", {}, "Focus"), h("th", {}, "Done"))),
+        h("thead", {}, h("tr", {}, h("th", {}, "Date"), state.blankPlan ? null : h("th", {}, "Phase"), h("th", {}, state.blankPlan ? "Subjects" : "Focus"), h("th", {}, "Done"))),
         h("tbody", {}, rows))));
   }
 
@@ -535,7 +685,7 @@
     if (rendering) { queued = true; return; }
     rendering = true;
     try {
-      const key = view === "today" ? `today|${viewDate}` : view;
+      const key = view === "today" ? `today|${viewDate}|${editing}` : view;
       const same = key === shown;
       // Keep table scroll positions when the same screen redraws (e.g. after ticking a tracker cell).
       const scrolls = same ? [...main.querySelectorAll(".scroll")].map((el) => [el.scrollLeft, el.scrollTop]) : [];

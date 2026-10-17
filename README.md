@@ -5,14 +5,16 @@ Covers all 19 subjects, from 18 Oct 2026 to the exam, with a day-by-day plan and
 ## Files
 
 - `generate_schedule.py`: builds the plan. Edit `EXAM` and `PHASES` here, then run it again.
-- `SCHEDULE.md`: the printable day-by-day plan (phases, subject allocation, one row per day).
+- `SCHEDULE.md`: the printable suggested day-by-day plan (phases, subject allocation, one row per day). Your own edits made in the app are not in this file.
 - `data/schedule.json` and `data/schedule.js`: the plan as data. The app reads `schedule.js`.
 - `index.html`, `app.js`, `styles.css`: the tracker. Open `index.html` in any browser. No server or install needed.
 
 ## Using the app
 
 1. **Today**: tick blocks as you finish them. Enter questions solved and a short reflection each night. Use ◀ ▶ to move between days; before the plan starts, "Preview day 1" opens the first day.
-2. **Calendar**: green days are 80% or more complete, amber days have some progress, and today is marked. Tap a day (or press Enter on it) to open it.
+   - **✏️ Edit day** makes the day yours: change any block's time, kind, subject, title or notes, remove blocks, or **+ Add block** with any subject (pick one of the 19 or type your own). Changes save as you go, and ticks on blocks you keep are kept.
+   - In edit mode you can also **Clear this day**, go **↺ Back to suggested plan**, or **Copy** the day to another date.
+2. **Calendar**: choose how to plan at the top, either **Start from the suggested timetable** (every day filled in, edit any day) or **Blank days, I'll plan my own** (days start empty). Days you've edited keep your plan in both modes and are marked "yours". Green days are 80% or more complete, amber days have some progress, and today is marked. Tap a day (or press Enter on it) to open it.
 3. **Tracker**: starts empty. Add only the tasks you want, with the quick-add chips (Core BTR videos, Marrow RR videos, RR videos, PYQs, Revision 1 to 8) or your own typed name. Each task is a row and each of the 19 subjects is a column (Anatomy first, Anaesthesia last). Each task has an optional due date that you set yourself; blank means no due date. In each cell, tick Done and today's date fills in (you can change it; unticking clears it), then set confidence 1 to 5. The Today screen lists open tasks that are overdue or due in the next 7 days.
 4. **Mocks**: log every full mock with score, total marks and weak areas. The average of your five most recent mocks (by date) shows your trend.
 5. **Backup**: progress lives in this browser only. Export every Sunday. Importing asks before replacing anything, and a file that is not a backup changes nothing. Erase wipes all progress in this browser.
@@ -27,8 +29,8 @@ Covers all 19 subjects, from 18 Oct 2026 to the exam, with a day-by-day plan and
 
 ## Rules the app enforces
 
-- If unfinished blocks from the last 3 days exist, the Today screen shows them. They go into the Saturday buffer, not the bin.
-- The streak counts days with 80% or more of blocks done. Today is allowed to be incomplete.
+- If unfinished blocks from the last 3 days exist, the Today screen shows them. Fit them into a catch-up slot (the suggested plan has a Saturday buffer), not the bin.
+- The streak counts days with 80% or more of blocks done. Today is allowed to be incomplete. A day with no blocks doesn't count.
 
 ## Changing the exam date
 
@@ -38,7 +40,7 @@ The date in `generate_schedule.py` is a placeholder. Set the official date, then
 python3 generate_schedule.py
 ```
 
-Your progress in the browser is kept, because it is keyed by block ID and block IDs are date-based. Blocks on dates that move will reset, so export your backup first.
+Your progress in the browser is kept, because it is keyed by block ID and block IDs are date-based. Blocks on dates that move will reset, so export your backup first. Days you planned yourself are stored in the browser and are not touched by the generator.
 
 ## Caveats
 
