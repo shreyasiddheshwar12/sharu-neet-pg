@@ -3,20 +3,28 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>NEET PG 2027 Accountability</title>
+  <title>🦋 NEET PG 2027</title>
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <header>
-    <h1>NEET PG 2027</h1>
-    <p id="countdown"></p>
+  <div class="glow" aria-hidden="true"></div>
+  <header class="hero">
+    <div>
+      <p class="eyebrow">🦋 Your NEET PG 2027 journey</p>
+      <h1>NEET PG 2027</h1>
+      <p id="quote" class="quote"></p>
+    </div>
+    <div class="countdown-card">
+      <span id="countdown-num">–</span>
+      <small>days to go</small>
+    </div>
   </header>
   <nav>
-    <button data-view="today" class="active">Today</button>
-    <button data-view="calendar">Calendar</button>
-    <button data-view="tracker">Tracker</button>
-    <button data-view="mocks">Mocks</button>
-    <button data-view="backup">Backup</button>
+    <button data-view="today" class="active">☀️ Today</button>
+    <button data-view="calendar">🗓️ Calendar</button>
+    <button data-view="tracker">✅ Tracker</button>
+    <button data-view="mocks">🎯 Mocks</button>
+    <button data-view="backup">💾 Backup</button>
   </nav>
   <main id="app"></main>
   <script src="data/schedule.js"></script>
