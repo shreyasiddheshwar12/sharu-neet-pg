@@ -46,3 +46,22 @@ th, td { text-align: left; padding: 8px; border-bottom: 1px solid var(--line); v
 table.cal tbody tr { cursor: pointer; }
 table.cal tr.good { background: var(--good); }
 table.cal tr.partial { background: var(--partial); }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; margin: 8px 0 12px; }
+.card button { margin-top: 6px; }
+ul.compact { margin: 6px 0; padding-left: 18px; }
+.tag.late { color: var(--danger); font-weight: 600; }
+.checks { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; margin: 8px 0 14px; }
+.check { background: var(--card); border: 1px solid var(--line); border-left: 4px solid var(--muted); border-radius: 10px; padding: 8px 10px; font-size: 0.9rem; }
+.check.ok { border-left-color: #2a9d5c; }
+.check.bad { border-left-color: var(--danger); }
+table.tracker { width: max-content; min-width: 100%; font-size: 0.85rem; }
+table.tracker th, table.tracker td { min-width: 130px; max-width: 150px; white-space: normal; }
+table.tracker th { position: sticky; top: 0; background: var(--card); z-index: 1; }
+table.tracker th.sticky { left: 0; z-index: 2; min-width: 170px; }
+table.tracker td { background: var(--card); }
+table.tracker td.overdue { background: var(--warn); }
+table.tracker td.done { background: var(--good); }
+table.tracker td.weak { background: var(--partial); }
+table.tracker tr.foot th, table.tracker tr.foot td { font-weight: 600; }
+table.tracker .tick { display: block; margin-bottom: 4px; }
+table.tracker select, table.tracker input { width: 100%; max-width: 140px; margin-top: 3px; }

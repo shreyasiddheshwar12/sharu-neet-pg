@@ -13,7 +13,7 @@ Covers all 19 subjects, from 18 Oct 2026 to the exam, with a day-by-day plan and
 
 1. **Today**: tick blocks as you finish them. Enter questions solved and a short reflection each night.
 2. **Calendar**: green days are 80% or more complete, amber days have some progress. Tap a day to open it.
-3. **Subjects**: rate your confidence 1 to 5 for each subject. Update it weekly.
+3. **Tracker**: one column per subject (Anatomy to Anaesthesia), one row per task (core videos, RR videos, PYQs, revisions 1-8). Tick Done, the date fills in automatically, and set confidence. The check panel flags overdue tasks, weak subjects and missed sequence. The Today screen lists tasks due in the next 7 days.
 4. **Mocks**: log every full mock with score and weak areas. The average of the last five shows your trend.
 5. **Backup**: progress lives in this browser only. Export every Sunday.
 
